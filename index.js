@@ -3,15 +3,10 @@ const cors = require("cors");
 
 const app = express();
 
-// middleware
 app.use(cors());
 app.use(express.json());
 
-// --------------------
-// ROUTES DE TEST
-// --------------------
-
-// route racine (évite "Cannot GET /")
+// route racine (IMPORTANT)
 app.get("/", (req, res) => {
   res.send("Inboxia backend is running 🚀");
 });
@@ -21,31 +16,35 @@ app.get("/health", (req, res) => {
   res.json({ ok: true });
 });
 
-// --------------------
-// ROUTE ANALYZE
-// --------------------
-
-// GET pour tester dans le navigateur
+// analyze (GET)
 app.get("/analyze", (req, res) => {
   res.json({
     ok: true,
-    message: "Utilise POST /analyze avec un body JSON { text: '...' }"
+    message: "Use POST /analyze with JSON body { text: '...' }"
   });
 });
 
-// POST pour Base44 / vraie utilisation
+// analyze (POST)
 app.post("/analyze", (req, res) => {
   const { text } = req.body || {};
 
-  if (!text || typeof text !== "string") {
+  if (!text) {
     return res.status(400).json({
       ok: false,
-      error: "Missing 'text' (string) in body"
+      error: "Missing text"
     });
   }
 
-  // logique simple (placeholder)
-  const summary =
-    text.length > 140 ? text.slice(0, 140) + "..." : text;
+  res.json({
+    ok: true,
+    summary: text.slice(0, 140),
+    length: text.length
+  });
+});
 
-  res
+// ⚠️ RAILWAY ONLY
+const PORT = process.env.PORT;
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log("Inboxia backend running on port", PORT);
+});
