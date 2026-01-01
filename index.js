@@ -1,48 +1,58 @@
-import express from "express";
-import cors from "cors";
-import OpenAI from "openai";
+const express = require("express");
+const cors = require("cors");
+const { ImapFlow } = require("imapflow");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// ✅ check
+app.get("/health", (req, res) => res.json({ ok: true }));
 
-app.get("/", (req, res) => {
-  res.json({ status: "Inboxia backend running" });
-});
+app.get("/", (req, res) => res.send("Inboxia backend is running 🚀"));
 
-app.post("/analyze", async (req, res) => {
-  try {
-    const { message } = req.body;
+// ✅ TEST CONNEXION GMAIL IMAP
+// Body attendu: { "email": "...", "appPassword": "...." }
+app.post("/connect/gmail", async (req, res) => {
+  const { email, appPassword } = req.body || {};
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a sales assistant. Analyze the message and return JSON with isInterested, summary, proposedQuote, nextAction."
-        },
-        {
-          role: "user",
-          content: message
-        }
-      ]
+  if (!email || !appPassword) {
+    return res.status(400).json({
+      ok: false,
+      error: "Missing email or appPassword"
     });
+  }
 
-    const result = completion.choices[0].message.content;
-    res.json({ result });
+  const client = new ImapFlow({
+    host: "imap.gmail.com",
+    port: 993,
+    secure: true,
+    auth: {
+      user: email,
+      pass: appPassword
+    }
+  });
 
+  try {
+    await client.connect();
+
+    // On ouvre la boîte pour confirmer
+    const lock = await client.getMailboxLock("INBOX");
+    lock.release();
+
+    await client.logout();
+
+    return res.json({ ok: true, message: "Gmail connected ✅" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "AI analysis failed" });
+    try { await client.logout(); } catch (e) {}
+
+    return res.status(401).json({
+      ok: false,
+      error: "Gmail connection failed",
+      details: err?.message || String(err)
+    });
   }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("Inboxia backend running on port", PORT);
-});
+app.listen(PORT, () => console.log("Inboxia backend running on port", PORT));
